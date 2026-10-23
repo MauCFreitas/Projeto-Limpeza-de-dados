@@ -4,7 +4,7 @@ O objetivo deste projeto consiste em gerar, e trabalhar dados sujos, gerados ale
 
 ### Ferramentas
 
-As ferramentas usadas serão: 
+As ferramentas usadas serão:   
     - Microsoft Copilot: para a geração das tabelas aleatórias;
     - Python: para o tratamento dos dados e automatização do serviço; 
     - PostgreSQL: para registrar as tabelas limpas e raceber os acessos; 
@@ -12,260 +12,126 @@ As ferramentas usadas serão:
 
 ### Geração dos dados
 
-As tabelas foram geradas a partir do seguinte script gerado pelo Microsoft Copilot:
+As tabelas foram geradas a partir do seguinte script gerado pelo Microsoft Copilot:  
 
 
-```Python
-import pandas as pd
-import numpy as np
-from faker import Faker
-import random
-from datetime import datetime, timedelta
-from pathlib import Path
+[Gerador de Tabela](projeto_limpeza_dados/DATA/RAW/GERADOR%20DE%20TABELAS/generate_data.py)  
 
-# ----------------------------------
-# Configuração
-# ----------------------------------
+A partir deste código, 4 tabelas foram geradas:  
+1- [projeto_limpeza_dados/DATA/RAW/clientes.csv] - Tabela que mostrava os registros de cadastros dos clientes desta suposta loja;
+2- [projeto_limpeza_dados/DATA/RAW/produtos.csv] - Tabela que represetava a disponibilidade de produtos cadastrados pela loja;
+3- [projeto_limpeza_dados/DATA/RAW/pedidos.csv] - Tabela que relacionada a entrega dos pedidos que foram feitos;
+4- [projeto_limpeza_dados/DATA/RAW/itens_pedido.csv] - Tabela que demonstrava os pedidos dos produtos cadastrados feitos pelos clientes cadastrados.
 
-fake = Faker("pt_BR")
-np.random.seed(42)
-random.seed(42)
+### Correção das tabelas
 
-N_CLIENTES = 1000
-N_PRODUTOS = 50
-N_PEDIDOS = 10000
-N_ITENS = 30000
+Como as tabelas foram geradas por informações aleatórias, alguns dados ficaram desconexos do que eu precisava para montar uma analise. 
+Além disso, alguns dados também não seguiam um padrão, o que poderia complicar uma futura analise em uma outra ferramenta.
 
-Path("data").mkdir(exist_ok=True)
+Para organizar os dados, precisei usar basicamente a bibliotecas Pandas e Numpy para buscar padrões e fazer a leitura adequada destas tabelas.
 
-# ----------------------------------
-# CLIENTES
-# ----------------------------------
+Sendo assim, iniciei a organização destas informações em:  
 
-clientes = []
+## [Tabela Clientes](projeto_limpeza_dados/SRC/transform_clientes.py)  
 
-cidades = [
-    "Rio de Janeiro",
-    "São Paulo",
-    "Belo Horizonte",
-    "Curitiba",
-    "Porto Alegre",
-    "Salvador",
-    "Recife",
-    "Fortaleza"
-]
+Os dados nesta tabela eram referentes aos clientes cadastrados nesta loja, e se apresentava em 7 colunas, sendo elas: id_cliente, nome, email, cidade, estado, idade, data_cadastro.
 
-for i in range(1, N_CLIENTES + 1):
+Passo 1 - Remover cadastros duplicados:  
+Ter mais de um cliente com o mesmo cadastro poderia atrapalhar minhas analises futuras, então não poderia deixar mais de um cliente com o mesmo ID, por exemplo.
 
-    cidade = random.choice(cidades)
+Passo 2 - Tratamento da coluna idade:  
+Como o código de geração me gerou dados de idade em formato float, que é um formato não apropriado para idade, fiz a correção para um formato int.
+Além disso, como se tratava de cadastros de uma loja, decidi que só usaria os clientes que tivesse idade entre 18 e 100 anos.
+Para não perder alguns cadastros, e como esta tabela é fictícia, decidi corrigir os valores nulos, que também foram anulados pelo tratamento anterior, e substitui os valores de idade nula pela média de idades dos clientes cadastrados com idades validas.
 
-    # inconsistências de cidade
-    if random.random() < 0.10:
-        cidade = random.choice([
-            cidade.lower(),
-            cidade.upper(),
-            cidade.replace("São", "S."),
-            cidade.replace("Rio de Janeiro", "RJ")
-        ])
+Passo 3 - Tratamento dos emails:  
+Os emails precisavam ter um formato específico, então para manter os dados desta coluna adequados, eu usei uma função que reconhecia os padrões de formato de emails, e desconsiderei os cadastros que não tinham email adequado.
 
-    email = fake.email()
+Passo 4 - Tratamento de cidades:  
+No código de geração, o aleatorizador contava com uma problematização na digitação da cidade, que incluia abreviações, letras maiúsculas e minúsculas. 
+Para resolver este problema, precisei usar um código que compreendesse as strings de forma adequada e convertesse os resultados da coluna em um formato padrão.
+Também precisei limpar os cadastros que não possuiam atribuição para o valor cidade.
 
-    # emails inválidos
-    if random.random() < 0.05:
-        email = random.choice([
-            email.replace("@", ""),
-            email.replace(".com", ""),
-            email.replace("@", "@@")
-        ])
+Passo 5 - Tratamento dos nomes:  
+Assim como nas outras colunas, a falta de padrão nos nomes era um fator que atrapalhava esta coluna. Além destre problema, também tinha a questão de titulos pessoais, como "Sr.", "Sra.", "Dr.", "Dra." que precisavam ser removidos para não poluírem os dados.
 
-    idade = random.randint(18, 70)
+Passo 6 - Remoção de colunas auxiliares:  
+Durante os processos anteriores, algumas colunas e tabelas extras foram geradas, e precisavam ser removidas.
 
-    # idades inválidas
-    if random.random() < 0.02:
-        idade = random.choice([-10, 150, 999])
+Passo 7 - Relatório de qualidade:  
+Gerei um relatório de qualidade desta tabela para me ajudar a compreender quantos dos cadastros foram mantidos duante o processo de limpeza.
 
-    cliente = {
-        "id_cliente": i,
-        "nome": fake.name(),
-        "email": email,
-        "cidade": cidade,
-        "estado": fake.estado_sigla(),
-        "idade": idade,
-        "data_cadastro": fake.date_between(
-            start_date="-5y",
-            end_date="today"
-        )
-    }
+Passo 8 - Salvar tabela limpa:  
+Com todos os erros resolvidos, só restava salvar a tabela na pasta da tabela clean.
 
-    clientes.append(cliente)
+------- Fim do tratamento dos dados desta tabela. -------
 
-clientes = pd.DataFrame(clientes)
+## [Tabela produtos](projeto_limpeza_dados/SRC/transform_produtos.py)  
 
-# nulos
-for col in ["email", "cidade", "idade"]:
-    mask = np.random.rand(len(clientes)) < 0.08
-    clientes.loc[mask, col] = np.nan
+Nesta tabela, os dados cadastrados se referiam aos produtos cadastrados na loja, e estavam separados em 4 colunas: id_produto, categoria, produto, preco.
 
-# duplicados
-duplicados = clientes.sample(frac=0.05)
-clientes = pd.concat([clientes, duplicados], ignore_index=True)
+Passo 1 - Reconhecimento dos dados e remoção das duplicatas:  
+Apesar de não apresentar duplicatas de produtos, eu precisava reconhecer os dados que estavam presentes nesta tabela e como os erros poderiam se apresentar.
 
-clientes.to_csv(
-    "data/clientes.csv",
-    index=False,
-    encoding="utf-8-sig"
-)
+Passo 2 - Tratamento das categorias:  
+Neste modelo de tabela, as categorias se demonstravam sem um padrão, algumas com erro de digitação, e outras sem padrão.
+Para uma consulta futura, isto poderia atrapalhar o desenvolvimento da analise.
 
-# ----------------------------------
-# PRODUTOS
-# ----------------------------------
+Passo 3 - Salvar tabela limpa:  
+Como esta tabela apresentava poucas colunas, e os dados já estavam de certa forma, concisos e prontos para uso, considerei que todos os erros resolvidos, só restava salvar a tabela na pasta da tabela clean.
 
-categorias = [
-    "Eletrônicos",
-    "Casa",
-    "Esporte",
-    "Livros",
-    "Informática"
-]
+------- Fim do tratamento dos dados desta tabela. -------
 
-produtos = []
+## [Tabela itens](projeto_limpeza_dados/SRC/transform_itens.py)  
 
-for i in range(1, N_PRODUTOS + 1):
+Esta era a primeira tabela que eu precisaria trabalhar os dados em conjunto com uma outra tabela trabalhada previamente, a tabela produtos_clean.
+Nesta tabela, haviam 5 colunas: id_item, id_pedido, id_produto, quantidade, valor_unitario.
 
-    categoria = random.choice(categorias)
+Passo 1 - Reconhecimento dos dados e remoção das duplicatas:  
+Como já foi dito e feito antes, as tabelas não deveriam apresentar dados duplicados para não gerar erros na analise.
 
-    # categorias inconsistentes
-    if random.random() < 0.10:
-        categoria = random.choice([
-            categoria.lower(),
-            categoria.upper(),
-            categoria[:-1]
-        ])
+Passo 2 - Tratamento de quantidades:  
+Esta coluna não poderia ser apresentada com valores negativos ou equivalentes a 0, pois indicaria que o pedido não havia sido realizado.
 
-    preco = round(random.uniform(10, 5000), 2)
+Passo 3 - Tratamento dos preços:  
+Como a tabela foi gerada através do aleatório, eu precisava que os preços fossem equivalentes aos preços cadastrados na tabela de produtos, então fiz a correção desta coluna, importando os valores da outra tabela me baseando na coluna de id_produto.
 
-    # preço inválido
-    if random.random() < 0.02:
-        preco = random.choice([0, -100, -500])
+Passo 4 - Criação da coluna valor_total:  
+Enquanto tratava estes dados, decidi que ter mais uma coluna que apontava o valor total da compra poderia ser util para a analise, então incluí esta coluna.
 
-    produtos.append({
-        "id_produto": i,
-        "categoria": categoria,
-        "produto": f"Produto {i}",
-        "preco": preco
-    })
+Passo 5 - Salvar tabela limpa:  
+Com os dados já tratados, agora era hora de salvar a tabela em formato clean.
 
-produtos = pd.DataFrame(produtos)
+------- Fim do tratamento dos dados desta tabela. -------
 
-produtos.to_csv(
-    "data/produtos.csv",
-    index=False,
-    encoding="utf-8-sig"
-)
+## [Tabela de pedidos](projeto_limpeza_dados/SRC/transform_pedidos.py)  
 
-# ----------------------------------
-# PEDIDOS
-# ----------------------------------
+Esta tabela foi a ultima a ser tratada, pois precisaria que os dados batessem com todos os dados de todas as outras tabelas anteriores.
+Ela apresentava 4 colunas: id_pedido, id_cliente, data_pedido, status.
 
-status_validos = [
-    "Entregue",
-    "Cancelado",
-    "Em Transporte"
-]
+Passo 1 - Tratamento de datas(1):  
+Nesta tabela, eu não vi como problema haverem dados duplicados, pois era uma tabela para identificar o status dos pedidos, apenas.
+Entretanto, encontrei um problema com a padronização do formato das datas.
 
-pedidos = []
+Passo 2 - Tratamento dos status:  
+Os status estavam cadastrados de formas variadas, sem um padrão, o que poderia atrapalhar nossas futuras analises.
 
-for i in range(1, N_PEDIDOS + 1):
+Passo 3 - Tratamento de datas(2):  
+Como a geração foi aleatória, as datas dos pedidos também estavam aleatórias. Então decidi fazer com que as datas dos pedidos feitos por clientes não fossem menores que as datas de cadastro destes mesmos clientes.
+Sendo assim, quando a data_pedido era menor que a data_cadastro do cliente, a data_pedido se tornava igual a data_cadastro.
 
-    status = random.choice(status_validos)
+Passo 4 - Salvar tabela limpa:  
+Com os dados já tratados, agora era hora de salvar a tabela em formato clean.
 
-    # status inconsistentes
-    if random.random() < 0.10:
-        status = random.choice([
-            status.lower(),
-            status.upper(),
-            "delivered"
-        ])
+------- Fim do tratamento dos dados desta tabela. -------
 
-    cliente = random.randint(1, N_CLIENTES)
+### Criação das tabelas em formato SQL
+As tabelas limpas ja estavam geradas, e agora eu precisava usar o PostgreSQL para cadastrar os dados destas tabelas.
+Para isso, usei as bibliotecas Python sqlalchemy e psychopg para reconhecer a conexão com o SQL e cadastrar as tabelas as tabelas.
+[Importação das tabelas para o SQL](projeto_limpeza_dados/SRC/load_postgres.py)  
 
-    # chave inválida
-    if random.random() < 0.03:
-        cliente = 999999
+Mas este código não fará isto de uma forma descritiva. Então será necessário apontar para ele de forma posterior quais são as chaves primárias e chaves estrangeiras, por exemplo.  
 
-    data_pedido = fake.date_between(
-        start_date="-2y",
-        end_date="today"
-    )
-
-    pedidos.append({
-        "id_pedido": i,
-        "id_cliente": cliente,
-        "data_pedido": data_pedido,
-        "status": status
-    })
-
-pedidos = pd.DataFrame(pedidos)
-
-# datas inválidas
-mask = np.random.rand(len(pedidos)) < 0.02
-
-datas_invalidas = [
-    "32/01/2024",
-    "2024-15-01",
-    "99/99/9999"
-]
-
-pedidos.loc[mask, "data_pedido"] = np.random.choice(
-    datas_invalidas,
-    mask.sum()
-)
-
-pedidos.to_csv(
-    "data/pedidos.csv",
-    index=False,
-    encoding="utf-8-sig"
-)
-
-# ----------------------------------
-# ITENS PEDIDO
-# ----------------------------------
-
-itens = []
-
-for i in range(1, N_ITENS + 1):
-
-    pedido_id = random.randint(1, N_PEDIDOS)
-    produto_id = random.randint(1, N_PRODUTOS)
-
-    # chave inválida
-    if random.random() < 0.03:
-        produto_id = 99999
-
-    quantidade = random.randint(1, 10)
-
-    # quantidade inválida
-    if random.random() < 0.02:
-        quantidade = random.choice([0, -2, -10])
-
-    valor = round(random.uniform(10, 5000), 2)
-
-    itens.append({
-        "id_item": i,
-        "id_pedido": pedido_id,
-        "id_produto": produto_id,
-        "quantidade": quantidade,
-        "valor_unitario": valor
-    })
-
-itens = pd.DataFrame(itens)
-
-itens.to_csv(
-    "data/itens_pedido.csv",
-    index=False,
-    encoding="utf-8-sig"
-)
-
-print("Arquivos gerados com sucesso!")
-```
+Para isso, usei este comando
+[]
 
